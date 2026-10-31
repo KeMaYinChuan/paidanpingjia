@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mock 订单确认</title>
+    <style>
+      body { font-family: sans-serif; padding: 40px; }
+      .box { max-width: 520px; padding: 22px; border: 1px solid #ddd; border-radius: 10px; }
+      input { width: 60px; padding: 6px; }
+      #submit { margin-top: 20px; padding: 11px 20px; border: 0; background: #ff5000; color: #fff; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <h1>确认订单</h1>
+      <p>收货地址：浙江省杭州市测试地址</p>
+      <p>商品：夏日纯棉短袖 T 恤 · 白色 / M</p>
+      <p>数量：<input name="quantity" type="number" value="1" /></p>
+      <p>金额：¥89.00</p>
+      <button id="submit" type="button" onclick="document.body.innerHTML='<h1>订单已提交（未付款）</h1>'">提交订单</button>
+    </div>
+  </body>
+</html>

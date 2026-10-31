@@ -1,0 +1,16 @@
+{
+  "name": "paidan-tai",
+  "version": "1.2.0",
+  "private": true,
+  "description": "本地淘宝一键拍单工具，全程在 ego 浏览器里运行",
+  "scripts": {
+    "start": "node quick-server.js",
+    "dashboard": "node server.js",
+    "open": "node open-ui.js",
+    "detect-login": "node detect-login.js",
+    "test": "node --test test/server.test.js test/quick.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

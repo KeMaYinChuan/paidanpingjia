@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f4f1e9" />
+    <title>一键拍单</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="brand">
+        <span class="brand-mark">拍</span>
+        <div>
+          <strong>一键拍单</strong>
+          <span>链接 + SKU，ego 里自动下单</span>
+        </div>
+      </header>
+
+      <section class="hero">
+        <p class="eyebrow">QUICK ORDER</p>
+        <h1>贴链接，填 SKU，<br />剩下的交给它。</h1>
+        <p class="sub">支持淘宝 / 天猫商品链接。全程在 ego 浏览器里运行；首次在 ego 里登录一次，之后保留登录状态。</p>
+      </section>
+
+      <section class="card">
+        <form id="orderForm" autocomplete="off">
+          <label class="field">
+            <span>商品链接</span>
+            <input id="url" name="url" type="url" placeholder="https://item.taobao.com/item.htm?id=..." required />
+            <small>可以直接粘贴淘宝分享口令，脚本会自动提取其中的链接。</small>
+          </label>
+
+          <div class="row">
+            <label class="field grow">
+              <span>规格值 1</span>
+              <input id="sku1" name="sku1" placeholder="例如：白色" required />
+            </label>
+            <label class="field grow">
+              <span>规格值 2（可选）</span>
+              <input id="sku2" name="sku2" placeholder="例如：M，留空自动选第一个" />
+            </label>
+            <label class="field qty">
+              <span>数量</span>
+              <input id="quantity" name="quantity" type="number" min="1" max="99" value="1" />
+            </label>
+          </div>
+          <div class="field">
+            <small>只填规格的值，不用写「颜色」「尺码」这类名字，脚本会自己在页面上匹配。留空的那一级自动选第一个可选值。</small>
+          </div>
+
+          <div class="login-bar">
+            <span class="login-dot" id="loginDot"></span>
+            <div class="login-text">
+              <b id="loginState">未登录</b>
+              <small id="loginHint">登录状态会保存在 ego 浏览器里，下次直接拍单。</small>
+            </div>
+            <button id="loginBtn" class="mini-btn" type="button">打开 ego 登录</button>
+            <button id="finishLoginBtn" class="mini-btn primary" type="button" hidden>我已完成登录</button>
+          </div>
+
+          <label class="check">
+            <input id="autoSubmit" type="checkbox" />
+            <span>
+              <b>自动点击「提交订单」</b>
+              <small>只创建未付款订单，不会自动付款。建议先不勾选，确认地址和金额后再自己提交。</small>
+            </span>
+          </label>
+
+          <button class="submit" id="startBtn" type="submit">
+            <span id="startBtnText">开始拍单</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13m0 0-5-5m5 5-5 5" /></svg>
+          </button>
+        </form>
+
+        <div class="status-panel" id="statusPanel" hidden>
+          <div class="status-head">
+            <div class="status-title">
+              <span class="status-dot" id="statusDot"></span>
+              <strong id="statusTitle">准备中</strong>
+            </div>
+            <button class="text-btn" id="closeBrowserBtn" type="button" hidden>取消任务</button>
+          </div>
+          <div class="progress"><i id="progressBar"></i></div>
+          <ol class="logs" id="logs"></ol>
+          <p class="status-hint" id="statusHint"></p>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <span>本机运行 · 全程使用 ego 浏览器</span>
+        <span>不保存淘宝密码</span>
+      </footer>
+    </main>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

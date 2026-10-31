@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mock 商品页</title>
+    <style>
+      body { font-family: sans-serif; padding: 40px; }
+      .options { display: flex; gap: 10px; margin: 20px 0; }
+      button { padding: 10px 16px; cursor: pointer; }
+      #buy { background: #ff5000; color: #fff; border: 0; }
+    </style>
+  </head>
+  <body>
+    <h1>测试商品：夏日纯棉短袖 T 恤</h1>
+    <p>价格 ¥89.00</p>
+    <div class="options">
+      <button type="button" onclick="this.dataset.selected='1'">白色</button>
+      <button type="button" onclick="this.dataset.selected='1'">M</button>
+    </div>
+    <button id="buy" type="button" onclick="location.href='/__mock-checkout.html'">立即购买</button>
+  </body>
+</html>

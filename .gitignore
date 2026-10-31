@@ -1,0 +1,12 @@
+data/db.json
+data/*.tmp
+data/ego-runs/
+data/login-state.json
+data/reviews.json
+data/review-runs/
+data/review-images/
+quick-profile/
+node_modules/
+*.log
+*.log.err
+data/*.err

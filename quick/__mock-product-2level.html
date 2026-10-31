@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mock 两级 SKU 商品页</title>
+    <style>
+      body { font-family: sans-serif; padding: 40px; }
+      .sku-panel { margin: 20px 0; }
+      .sku-property { margin: 14px 0; }
+      .sku-property h3 { margin: 0 0 8px; font-size: 14px; }
+      .sku-values { display: flex; gap: 10px; }
+      .sku-values button { padding: 8px 16px; cursor: pointer; }
+      .sku-values button[data-dsh-picked] { outline: 2px solid #ff5000; }
+      #buy { margin-top: 20px; padding: 12px 22px; background: #ff5000; color: #fff; border: 0; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <h1>测试商品：两级规格 T 恤</h1>
+    <p>价格 ¥89.00</p>
+    <div class="sku-panel">
+      <div class="sku-property">
+        <h3>颜色</h3>
+        <div class="sku-values">
+          <button type="button" onclick="this.dataset.selected='1'">白色</button>
+          <button type="button" onclick="this.dataset.selected='1'">黑色</button>
+        </div>
+      </div>
+      <div class="sku-property">
+        <h3>尺码</h3>
+        <div class="sku-values">
+          <button type="button" onclick="this.dataset.selected='1'">S</button>
+          <button type="button" onclick="this.dataset.selected='1'">M</button>
+          <button type="button" onclick="this.dataset.selected='1'">L</button>
+        </div>
+      </div>
+    </div>
+    <button id="buy" type="button" onclick="location.href='/__mock-checkout.html'">立即购买</button>
+  </body>
+</html>

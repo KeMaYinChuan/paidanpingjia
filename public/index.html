@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f4f1ea" />
+    <title>派单台 · 淘宝订单晒图任务管理</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="派单台首页">
+          <span class="brand-mark">派</span>
+          <span class="brand-copy">
+            <strong>派单台</strong>
+            <small>订单 · 晒图任务管理</small>
+          </span>
+        </a>
+
+        <div class="topbar-meta">
+          <span class="local-badge"><i></i> 本机数据</span>
+          <span id="todayLabel" class="today-label"></span>
+        </div>
+
+        <div class="top-actions">
+          <button class="btn btn-quiet" id="importBtn" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16" /></svg>
+            导入 CSV
+          </button>
+          <button class="btn btn-quiet" id="exportBtn" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0 4 4m-4-4L8 7M4 13v6h16v-6" /></svg>
+            导出
+          </button>
+          <button class="btn btn-primary" id="autoAssignBtn" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-9 12h7l-1 8 9-12h-7l1-8Z" /></svg>
+            自动派单
+          </button>
+          <button class="btn btn-dark" id="newOrderBtn" type="button">
+            <span class="plus">+</span> 新建订单
+          </button>
+        </div>
+      </header>
+
+      <main class="main">
+        <section class="intro">
+          <div>
+            <p class="eyebrow">TODAY'S WORKBENCH</p>
+            <h1>把订单分出去，把进度收回来。</h1>
+            <p class="intro-copy">按执行人负载自动分配订单，跟踪晒图素材从拍摄到验收的每一步。</p>
+          </div>
+          <div class="intro-note">
+            <span class="note-icon">↗</span>
+            <div>
+              <strong id="introPending">0 个订单待分配</strong>
+              <span>点击「自动派单」按当前负载均衡分配</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="stats" id="stats" aria-label="数据概览"></section>
+
+        <div class="workspace">
+          <section class="panel orders-panel">
+            <div class="panel-head">
+              <div>
+                <h2>订单任务</h2>
+                <p id="orderCountLabel">共 0 条订单</p>
+              </div>
+              <div class="view-switch" role="tablist" aria-label="状态筛选" id="statusTabs"></div>
+            </div>
+
+            <div class="toolbar">
+              <label class="search-box">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg>
+                <input id="searchInput" type="search" placeholder="搜索订单号、商品、买家…" autocomplete="off" />
+                <kbd>⌘ K</kbd>
+              </label>
+              <label class="select-wrap">
+                <span>执行人</span>
+                <select id="operatorFilter">
+                  <option value="">全部</option>
+                </select>
+              </label>
+              <label class="check-filter">
+                <input type="checkbox" id="overdueFilter" />
+                <span>只看逾期</span>
+              </label>
+            </div>
+
+            <div class="table-wrap">
+              <table class="orders-table">
+                <thead>
+                  <tr>
+                    <th class="col-order">订单 / 商品</th>
+                    <th>买家</th>
+                    <th class="num">金额</th>
+                    <th>执行人</th>
+                    <th>状态</th>
+                    <th>截止</th>
+                    <th class="actions-col"><span class="sr-only">操作</span></th>
+                  </tr>
+                </thead>
+                <tbody id="orderRows"></tbody>
+              </table>
+              <div class="empty-state" id="emptyState" hidden>
+                <div class="empty-art">
+                  <span></span><span></span><span></span>
+                </div>
+                <h3>这里还没有符合条件的订单</h3>
+                <p>新建一个订单，或者从淘宝后台导出的 CSV 批量导入。</p>
+                <button class="btn btn-primary" id="emptyAddBtn" type="button">+ 新建订单</button>
+              </div>
+            </div>
+
+            <div class="table-footer">
+              <span id="footerSummary">显示 0 条</span>
+              <div class="legend">
+                <span><i class="dot dot-gray"></i>待派单</span>
+                <span><i class="dot dot-amber"></i>进行中</span>
+                <span><i class="dot dot-green"></i>已完成</span>
+              </div>
+            </div>
+          </section>
+
+          <aside class="side-column">
+            <section class="panel team-panel">
+              <div class="panel-head compact">
+                <div>
+                  <h2>执行人负载</h2>
+                  <p>按未完成任务计算</p>
+                </div>
+                <button class="icon-btn" id="manageTeamBtn" type="button" title="管理执行人" aria-label="管理执行人">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" /></svg>
+                </button>
+              </div>
+              <div class="team-list" id="teamList"></div>
+              <button class="team-add" id="addOperatorBtn" type="button"><span>+</span> 添加执行人</button>
+            </section>
+
+            <section class="panel activity-panel">
+              <div class="panel-head compact">
+                <div>
+                  <h2>最近动态</h2>
+                  <p>本机操作记录</p>
+                </div>
+                <span class="live-dot"><i></i> 实时</span>
+              </div>
+              <ol class="activity-list" id="activityList"></ol>
+            </section>
+
+            <section class="tip-card">
+              <span class="tip-index">01</span>
+              <div>
+                <strong>分配规则</strong>
+                <p>加急订单优先，其次按截止日期排序；每个人拿到当前未完成任务最少的下一单。</p>
+              </div>
+            </section>
+          </aside>
+        </div>
+
+        <footer class="footer">
+          <span>数据保存在本机 <code>data/db.json</code>，不上传云端。</span>
+          <span>派单台 · 本地工作台</span>
+        </footer>
+      </main>
+    </div>
+
+    <dialog class="dialog" id="orderDialog">
+      <form method="dialog" id="orderForm" class="dialog-card">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow" id="orderDialogEyebrow">NEW ORDER</p>
+            <h2 id="orderDialogTitle">新建订单</h2>
+          </div>
+          <button class="icon-btn dialog-close" type="button" data-close-dialog aria-label="关闭">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+          </button>
+        </div>
+        <input type="hidden" id="orderId" />
+        <div class="form-grid">
+          <label class="field span-2">
+            <span>淘宝订单号</span>
+            <input id="taobaoOrderNo" name="taobaoOrderNo" placeholder="例如 3829104756201938475" />
+          </label>
+          <label class="field">
+            <span>店铺</span>
+            <input id="shop" name="shop" placeholder="店铺名称" />
+          </label>
+          <label class="field">
+            <span>优先级</span>
+            <select id="priority" name="priority">
+              <option>普通</option>
+              <option>加急</option>
+            </select>
+          </label>
+          <label class="field span-2">
+            <span>商品名称 <b>*</b></span>
+            <input id="product" name="product" placeholder="商品标题 / 任务名称" required />
+          </label>
+          <label class="field span-2">
+            <span>SKU / 规格</span>
+            <input id="sku" name="sku" placeholder="颜色、尺码等规格" />
+          </label>
+          <label class="field">
+            <span>买家昵称</span>
+            <input id="buyerNick" name="buyerNick" placeholder="买家会员名" />
+          </label>
+          <label class="field">
+            <span>实付金额</span>
+            <div class="money-input"><span>¥</span><input id="amount" name="amount" inputmode="decimal" placeholder="0.00" /></div>
+          </label>
+          <label class="field">
+            <span>收货人</span>
+            <input id="receiver" name="receiver" placeholder="收件人姓名" />
+          </label>
+          <label class="field">
+            <span>地区</span>
+            <input id="region" name="region" placeholder="省 / 市" />
+          </label>
+          <label class="field">
+            <span>执行人</span>
+            <select id="operatorId" name="operatorId"></select>
+          </label>
+          <label class="field">
+            <span>截止日期</span>
+            <input id="dueDate" name="dueDate" type="date" />
+          </label>
+          <label class="field span-2">
+            <span>备注</span>
+            <textarea id="note" name="note" rows="3" placeholder="拍摄要求、注意事项…"></textarea>
+          </label>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-quiet" type="button" data-close-dialog>取消</button>
+          <button class="btn btn-dark" type="submit" id="saveOrderBtn">保存订单</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="dialog" id="importDialog">
+      <form method="dialog" id="importForm" class="dialog-card">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">BULK IMPORT</p>
+            <h2>导入订单 CSV</h2>
+          </div>
+          <button class="icon-btn dialog-close" type="button" data-close-dialog aria-label="关闭">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+          </button>
+        </div>
+        <p class="dialog-copy">支持淘宝后台导出的订单表，也支持自定义表头。第一行必须是字段名，UTF-8 编码。</p>
+        <label class="file-drop" id="fileDrop">
+          <input type="file" id="csvFile" accept=".csv,text/csv" />
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0 4 4m-4-4L8 8M5 15v5h14v-5" /></svg>
+          <strong>选择 CSV 文件</strong>
+          <span>或者把内容粘贴到下面</span>
+        </label>
+        <label class="field">
+          <span>CSV 内容</span>
+          <textarea id="csvText" rows="9" placeholder="淘宝订单号,商品名称,买家昵称,实付金额,收货人,地区,备注"></textarea>
+        </label>
+        <div class="import-hints">
+          <button type="button" class="text-link" id="downloadTemplateBtn">下载模板 CSV</button>
+          <span>可识别：订单编号 / 商品名称 / 买家昵称 / 实付金额 / 收货人 / 地区</span>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-quiet" type="button" data-close-dialog>取消</button>
+          <button class="btn btn-dark" type="submit">开始导入</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="dialog" id="teamDialog">
+      <form method="dialog" class="dialog-card dialog-narrow" id="teamForm">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">TEAM SETUP</p>
+            <h2>管理执行人</h2>
+          </div>
+          <button class="icon-btn dialog-close" type="button" data-close-dialog aria-label="关闭">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+          </button>
+        </div>
+        <p class="dialog-copy">停用后不会参与自动派单，已有任务不受影响。</p>
+        <div class="team-editor" id="teamEditor"></div>
+        <div class="add-person-row">
+          <input id="newOperatorName" placeholder="新执行人名称" maxlength="40" />
+          <button class="btn btn-quiet" type="button" id="createOperatorBtn">添加</button>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-dark" type="button" data-close-dialog>完成</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+    <template id="statTemplate">
+      <article class="stat-card">
+        <div class="stat-top"><span class="stat-label"></span><span class="stat-icon"></span></div>
+        <strong class="stat-value"></strong>
+        <span class="stat-foot"></span>
+      </article>
+    </template>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>
