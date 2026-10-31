@@ -80,20 +80,20 @@ function renderStatus(d) {
   const dot = $('#runDot');
   dot.className = 'dot';
   let text = '空闲';
-  let hint = runner.lastTickAt ? `上次巡检：${timeLabel(runner.lastTickAt)}` : '还没有巡检过';
+  let hint = runner.lastTickAt ? `上次检查：${timeLabel(runner.lastTickAt)}` : '打开页面会自动检查一次';
   if (!d.settings.enabled) {
-    text = '调度已暂停';
+    text = '自动检查已暂停';
     dot.classList.add('warn');
   } else if (runner.busy) {
     text = '正在执行任务';
     dot.classList.add('busy');
   } else {
     dot.classList.add('ok');
-    hint += ` · 每 ${d.settings.checkIntervalMinutes} 分钟巡检一次`;
+    hint += ' · 可点「立即巡检」手动触发';
   }
   $('#runState').textContent = text;
   $('#runHint').textContent = hint;
-  $('#toggleBtn').textContent = d.settings.enabled ? '暂停调度' : '恢复调度';
+  $('#toggleBtn').textContent = d.settings.enabled ? '暂停自动检查' : '恢复自动检查';
 }
 
 function renderStats(stats) {
@@ -106,10 +106,7 @@ function renderStats(stats) {
 
 function renderSettings(settings) {
   if (document.activeElement && document.activeElement.closest('.settings-grid')) return;
-  $('#setInterval').value = settings.checkIntervalMinutes;
   $('#setFollowupDays').value = settings.followupDefaultDays;
-  $('#setQuietStart').value = settings.quietHours.start;
-  $('#setQuietEnd').value = settings.quietHours.end;
 }
 
 function taskActionButtons(task) {
@@ -379,9 +376,7 @@ async function main() {
       await api('/api/review/settings', {
         method: 'PATCH',
         body: JSON.stringify({
-          checkIntervalMinutes: Number($('#setInterval').value),
           followupDefaultDays: Number($('#setFollowupDays').value),
-          quietHours: { start: $('#setQuietStart').value, end: $('#setQuietEnd').value },
         }),
       });
       toast('设置已保存');
@@ -390,6 +385,14 @@ async function main() {
   });
 
   await poll();
+
+  // 打开页面时自动检查一次（服务端一分钟内只处理一次）。
+  api('/api/review/check-now?auto=1', { method: 'POST' })
+    .then((result) => {
+      if (result && result.accepted) setTimeout(poll, 3000);
+    })
+    .catch(() => {});
+
   setInterval(poll, 3000);
 }
 

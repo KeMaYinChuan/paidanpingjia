@@ -94,11 +94,9 @@
         <details class="settings">
           <summary>调度设置</summary>
           <div class="settings-grid">
-            <label class="field"><span>巡检间隔（分钟）</span><input id="setInterval" type="number" min="5" max="1440" /></label>
             <label class="field"><span>默认追评天数</span><input id="setFollowupDays" type="number" min="0" max="180" /></label>
-            <label class="field"><span>静音开始</span><input id="setQuietStart" placeholder="23:30" /></label>
-            <label class="field"><span>静音结束</span><input id="setQuietEnd" placeholder="08:00" /></label>
           </div>
+          <p class="muted" style="margin:10px 0 0;">不做定时巡检：每次打开这个页面会自动检查一次，也可以点「立即巡检」手动触发。</p>
           <div style="margin-top:10px;"><button class="btn small" id="saveSettingsBtn">保存设置</button></div>
         </details>
       </section>

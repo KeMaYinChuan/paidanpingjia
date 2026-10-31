@@ -40,6 +40,8 @@ function createReviewApi({ root, store, scheduler, sendJson, HttpError }) {
     });
   }
 
+  let lastAutoCheckAt = 0;
+
   return async function handleReviewApi(req, res, pathname, method, url) {
     if (!pathname.startsWith('/api/review')) return false;
 
@@ -61,6 +63,19 @@ function createReviewApi({ root, store, scheduler, sendJson, HttpError }) {
 
     if (pathname === '/api/review/check-now' && method === 'POST') {
       const wait = url.searchParams.get('wait') === '1';
+      const auto = url.searchParams.get('auto') === '1';
+      if (auto) {
+        if (!store.settings.enabled) {
+          sendJson(res, 200, { skipped: 'disabled' });
+          return true;
+        }
+        // 打开页面触发的检查：一分钟内只跑一次，避免刷新造成重复执行。
+        if (Date.now() - lastAutoCheckAt < 60 * 1000) {
+          sendJson(res, 200, { skipped: 'throttled' });
+          return true;
+        }
+        lastAutoCheckAt = Date.now();
+      }
       const run = scheduler.tick({ manual: true });
       if (wait) {
         const outcome = await run;

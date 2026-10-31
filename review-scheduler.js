@@ -117,12 +117,9 @@ class ReviewScheduler {
     this.lastTickResult = null;
   }
 
+  // 不做定时巡检：只在打开晒评价页面时触发一次检查（见 /api/review/check-now）。
   start() {
-    if (this.timer) return;
-    this.timer = setInterval(() => {
-      this.tick().catch(() => {});
-    }, this.intervalMs);
-    if (this.timer.unref) this.timer.unref();
+    this.stop();
   }
 
   stop() {
@@ -132,11 +129,11 @@ class ReviewScheduler {
 
   status() {
     return {
-      running: Boolean(this.timer),
+      running: false,
       busy: this.running,
       lastTickAt: this.lastTickAt,
       lastTickResult: this.lastTickResult,
-      nextTickAt: this.timer ? new Date(Date.now() + this.intervalMs).toISOString() : null,
+      nextTickAt: null,
     };
   }
 

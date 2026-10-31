@@ -664,7 +664,6 @@ if (require.main === module) {
   server.listen(PORT, '127.0.0.1', () => {
     const address = `http://127.0.0.1:${PORT}`;
     console.log(`一键拍单已启动：${address}`);
-    reviewScheduler.start();
     if (process.env.AUTO_OPEN === '1') {
       openInEgo(address);
     }
