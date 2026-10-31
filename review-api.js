@@ -87,6 +87,68 @@ function createReviewApi({ root, store, scheduler, sendJson, HttpError }) {
       return true;
     }
 
+    if (pathname === '/api/review/fetch-images' && method === 'POST') {
+      const body = await parseJson(req, HttpError);
+      const url = String(body.url || '').trim();
+      let parsed;
+      try {
+        parsed = new URL(url);
+      } catch {
+        throw new HttpError(400, '商品链接格式不正确');
+      }
+      const host = parsed.hostname.toLowerCase();
+      const isTaobao = /(^|\.)taobao\.com$|(^|\.)tmall\.com$|(^|\.)tmall\.hk$|(^|\.)tb\.cn$/.test(host);
+      const isMock = process.env.REVIEW_MOCK_BASE && (host === '127.0.0.1' || host === 'localhost');
+      if (!isTaobao && !isMock) throw new HttpError(400, '只支持淘宝、天猫商品链接');
+
+      const result = await scheduler.runner.fetchImages({
+        url,
+        sku1: String(body.sku1 || '').trim().slice(0, 40),
+        sku2: String(body.sku2 || '').trim().slice(0, 40),
+      });
+
+      const images = [];
+      for (let index = 0; index < result.images.length && images.length < 8; index += 1) {
+        const imageUrl = result.images[index];
+        try {
+          const response = await fetch(imageUrl, { headers: { Referer: url, 'User-Agent': 'Mozilla/5.0' } });
+          if (!response.ok) continue;
+          const buffer = Buffer.from(await response.arrayBuffer());
+          if (buffer.length > 5 * 1024 * 1024) continue;
+          const contentType = response.headers.get('content-type') || 'image/jpeg';
+          images.push({
+            name: `image-${index + 1}.jpg`,
+            dataUrl: `data:${contentType};base64,${buffer.toString('base64')}`,
+          });
+        } catch {
+          // 单张下载失败就跳过。
+        }
+      }
+      sendJson(res, 200, { images });
+      return true;
+    }
+
+    if (pathname === '/api/review/import-orders' && method === 'POST') {
+      const result = await scheduler.runner.importOrders();
+      let imported = 0;
+      let skipped = 0;
+      for (const order of result.orders || []) {
+        if (!order.orderId) continue;
+        if (store.getByOrderId(order.orderId)) {
+          skipped += 1;
+          continue;
+        }
+        try {
+          store.upsertTask({ orderId: order.orderId, orderTitle: order.title || '' });
+          imported += 1;
+        } catch {
+          // 订单号格式不对就跳过。
+        }
+      }
+      sendJson(res, 200, { imported, skipped, scanned: (result.orders || []).length });
+      return true;
+    }
+
     if (pathname === '/api/review/tasks' && method === 'POST') {
       const body = await parseJson(req, HttpError);
       const task = store.upsertTask(body);

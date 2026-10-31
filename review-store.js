@@ -31,7 +31,8 @@ const DEFAULT_SETTINGS = {
   checkIntervalMinutes: 30,
   followupDefaultDays: 3,
   quietHours: { start: '23:30', end: '08:00' },
-  maxImagesPerReview: 9,
+  maxImagesPerReview: 5,
+  maxImagesPerFollowup: 5,
   reviewWindowDays: 15,
   followupWindowDays: 180,
   rating: 5,
@@ -70,7 +71,8 @@ function normalizeSettings(patch = {}, base = DEFAULT_SETTINGS) {
       start: parseClock(quietHours.start, base.quietHours.start),
       end: parseClock(quietHours.end, base.quietHours.end),
     },
-    maxImagesPerReview: clamp(Number(input.maxImagesPerReview) || base.maxImagesPerReview, 1, 9),
+    maxImagesPerReview: clamp(Number(input.maxImagesPerReview) || base.maxImagesPerReview, 1, 5),
+    maxImagesPerFollowup: clamp(Number(input.maxImagesPerFollowup) || base.maxImagesPerFollowup, 1, 5),
     reviewWindowDays: clamp(Number(input.reviewWindowDays) || base.reviewWindowDays, 1, 30),
     followupWindowDays: clamp(Number(input.followupWindowDays) || base.followupWindowDays, 1, 365),
     rating: clamp(Number(input.rating) || base.rating, 1, 5),
@@ -82,6 +84,11 @@ function sanitizeOrderId(value) {
   const text = String(value || '').trim();
   if (!/^[0-9A-Za-z_-]{6,40}$/.test(text)) return null;
   return text;
+}
+
+function normalizeImageList(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map((item) => String(item || '').trim()).filter(Boolean))];
 }
 
 function inQuietHours(settings, now = Date.now()) {
@@ -191,11 +198,15 @@ class ReviewStore {
     }
     const existing = this.getByOrderId(orderId);
     const settings = this.state.settings;
-    const images = Array.isArray(input.images)
-      ? [...new Set(input.images.map((item) => String(item || '').trim()).filter(Boolean))]
-      : [];
-    if (images.length > settings.maxImagesPerReview) {
-      const error = new Error(`最多 ${settings.maxImagesPerReview} 张图片`);
+    const reviewImages = normalizeImageList(input.reviewImages ?? input.images);
+    const followupImages = normalizeImageList(input.followupImages);
+    if (reviewImages.length > settings.maxImagesPerReview) {
+      const error = new Error(`首次晒图最多 ${settings.maxImagesPerReview} 张`);
+      error.status = 400;
+      throw error;
+    }
+    if (followupImages.length > settings.maxImagesPerFollowup) {
+      const error = new Error(`追评晒图最多 ${settings.maxImagesPerFollowup} 张`);
       error.status = 400;
       throw error;
     }
@@ -203,7 +214,8 @@ class ReviewStore {
       orderId,
       orderTitle: String(input.orderTitle || '').trim().slice(0, 120),
       itemUrl: String(input.itemUrl || '').trim().slice(0, 500),
-      images,
+      reviewImages,
+      followupImages,
       content: String(input.content || '').slice(0, 500),
       followupContent: String(input.followupContent || '').slice(0, 500),
       followupDays: clamp(Number(input.followupDays ?? settings.followupDefaultDays), 0, 180),
@@ -250,16 +262,23 @@ class ReviewStore {
         task[key] = String(patch[key] || '').slice(0, key === 'itemUrl' ? 500 : 500).trim();
       }
     }
-    if (patch.images !== undefined) {
-      const images = Array.isArray(patch.images)
-        ? [...new Set(patch.images.map((item) => String(item || '').trim()).filter(Boolean))]
-        : [];
-      if (images.length > settings.maxImagesPerReview) {
-        const error = new Error(`最多 ${settings.maxImagesPerReview} 张图片`);
+    if (patch.reviewImages !== undefined || patch.images !== undefined) {
+      const reviewImages = normalizeImageList(patch.reviewImages ?? patch.images);
+      if (reviewImages.length > settings.maxImagesPerReview) {
+        const error = new Error(`首次晒图最多 ${settings.maxImagesPerReview} 张`);
         error.status = 400;
         throw error;
       }
-      task.images = images;
+      task.reviewImages = reviewImages;
+    }
+    if (patch.followupImages !== undefined) {
+      const followupImages = normalizeImageList(patch.followupImages);
+      if (followupImages.length > settings.maxImagesPerFollowup) {
+        const error = new Error(`追评晒图最多 ${settings.maxImagesPerFollowup} 张`);
+        error.status = 400;
+        throw error;
+      }
+      task.followupImages = followupImages;
     }
     if (patch.followupDays !== undefined) {
       task.followupDays = clamp(Number(patch.followupDays) || 0, 0, 180);
@@ -440,12 +459,14 @@ class ReviewStore {
   }
 
   #publicTask(task) {
+    const toUrls = (list) => (list || []).map((filePath) => {
+      const name = path.basename(filePath);
+      return `/api/review/images/${task.id}/${encodeURIComponent(name)}`;
+    });
     return {
       ...task,
-      imageUrls: (task.images || []).map((filePath) => {
-        const name = path.basename(filePath);
-        return `/api/review/images/${task.id}/${encodeURIComponent(name)}`;
-      }),
+      imageUrls: toUrls(task.reviewImages),
+      followupImageUrls: toUrls(task.followupImages),
     };
   }
 
@@ -456,7 +477,8 @@ class ReviewStore {
       orderId: String(task.orderId || ''),
       orderTitle: String(task.orderTitle || ''),
       itemUrl: String(task.itemUrl || ''),
-      images: Array.isArray(task.images) ? task.images : [],
+      reviewImages: normalizeImageList(task.reviewImages ?? task.images),
+      followupImages: normalizeImageList(task.followupImages),
       content: String(task.content || ''),
       followupContent: String(task.followupContent || ''),
       followupDays: clamp(Number(task.followupDays ?? settings.followupDefaultDays), 0, 180),

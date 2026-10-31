@@ -14,13 +14,14 @@ const DEFAULT_URLS = {
   myRate: 'https://rate.taobao.com/myRate.htm',
 };
 
-function taskScript({ space, orderId, images = [], content = '', followupContent = '', rating = 5, urls = {}, progressPath, resultPath }) {
+function taskScript({ space, orderId, reviewImages = [], followupImages = [], content = '', followupContent = '', rating = 5, urls = {}, progressPath, resultPath }) {
   const targetUrls = { ...DEFAULT_URLS, ...urls };
   return `'use strict';
 
 const SPACE = ${json(space)};
 const ORDER_ID = ${json(orderId)};
-const IMAGES = ${json(images)};
+const IMAGES = ${json(reviewImages)};
+const FOLLOWUP_IMAGES = ${json(followupImages)};
 const CONTENT = ${json(content)};
 const FOLLOWUP_CONTENT = ${json(followupContent)};
 const RATING = ${json(Number(rating) || 5)};
@@ -217,7 +218,8 @@ async function fillText(value) {
   return ok;
 }
 
-async function uploadImages() {
+async function uploadImages(list) {
+  const IMAGES = list || [];
   if (!IMAGES.length) return true;
   try {
     const direct = await page.evaluate(() => Boolean(document.querySelector('input[type="file"]'))).catch(() => false);
@@ -321,7 +323,7 @@ async function main() {
       await log(starred ? '已选择评分' : '没有点到评分星', starred ? 'info' : 'warn');
       const filled = await fillText(CONTENT);
       await log(filled ? '评价文字已填写' : '没有找到评价输入框', filled ? 'info' : 'warn');
-      const imagesOk = await uploadImages();
+      const imagesOk = await uploadImages(IMAGES);
       await log(imagesOk ? '晒图已上传' : '晒图没有上传成功', imagesOk ? 'info' : 'warn');
       const submitted = await submitAndVerify(['提交评价', '发表评价', '发布评价', '提交', '确定'], ['评价成功', '发布成功', '提交成功', '已评价']);
       if (!submitted.ok) {
@@ -345,7 +347,8 @@ async function main() {
       await page.waitForTimeout(1200);
       await fillStars();
       await fillText(FOLLOWUP_CONTENT || CONTENT);
-      await uploadImages();
+      const followupImagesOk = await uploadImages(FOLLOWUP_IMAGES);
+      await log(followupImagesOk ? '追评晒图已上传' : '追评晒图没有上传成功', followupImagesOk ? 'info' : 'warn');
       const submitted = await submitAndVerify(['提交追评', '发表追评', '提交', '确定'], ['追评成功', '发布成功', '提交成功', '已追评']);
       if (!submitted.ok) {
         await saveResult({ state: 'error', error: submitted.reason, currentUrl: await page.url().catch(() => null) });
@@ -380,4 +383,142 @@ await main();
 `;
 }
 
-module.exports = { taskScript, DEFAULT_URLS };
+// 从商品链接抓取主图和 SKU 图，返回图片 URL 列表。
+function fetchImagesScript({ space, url, sku1 = '', sku2 = '', resultPath }) {
+  return `'use strict';
+
+const SPACE = ${json(space)};
+const URL = ${json(url)};
+const SKU1 = ${json(sku1)};
+const SKU2 = ${json(sku2)};
+const RESULT = ${json(resultPath)};
+
+const fs = await import('node:fs/promises');
+
+async function save(data) {
+  try { await fs.writeFile(RESULT, JSON.stringify(data)); } catch {}
+}
+
+const task = await taskSpace(SPACE);
+const page = task.page('p1');
+try {
+  await page.goto(URL);
+  await page.waitForTimeout(2500);
+  const current = await page.url().catch(() => '');
+  if (/login\\.taobao\\.com/.test(current)) {
+    await save({ state: 'needs_attention', reason: '登录已失效' });
+  } else {
+    const pick = async (label) => {
+      try {
+        return await page.evaluate((text) => {
+          const vis = (el) => {
+            if (!el || !el.isConnected) return false;
+            const box = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
+            return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+          };
+          const nodes = [...document.querySelectorAll('button,li,span,div,a,label')].filter((el) => {
+            if (!vis(el)) return false;
+            const value = (el.innerText || '').trim();
+            return value === text && el.getBoundingClientRect().width <= 200;
+          });
+          if (!nodes.length) return null;
+          nodes[0].click();
+          return true;
+        }, label);
+      } catch {
+        return null;
+      }
+    };
+    if (SKU1) { await pick(SKU1); await page.waitForTimeout(600); }
+    if (SKU2) { await pick(SKU2); await page.waitForTimeout(800); }
+
+    const images = await page.evaluate(() => {
+      const abs = (src) => {
+        try { return new URL(src, location.href).href; } catch { return ''; }
+      };
+      const out = [];
+      const add = (src) => {
+        const url = abs(src);
+        if (!url) return;
+        if (!/^https?:/.test(url)) return;
+        if (url.startsWith('data:')) return;
+        if (!out.includes(url)) out.push(url);
+      };
+      const main = document.querySelector('#J_ImgBooth') || document.querySelector('img[class*="main" i]') || document.querySelector('meta[property="og:image"]');
+      if (main) add(main.src || main.content);
+      [...document.querySelectorAll('[class*="thumb" i] img, [class*="gallery" i] img')].slice(0, 6).forEach((img) => add(img.src));
+      [...document.querySelectorAll('[class*="sku" i] img, [class*="spec" i] img')].forEach((img) => {
+        if (img.getBoundingClientRect().width >= 40) add(img.src);
+      });
+      return out.slice(0, 8);
+    }).catch(() => []);
+
+    await save({ state: 'ok', images, currentUrl: await page.url().catch(() => null) });
+  }
+} catch (error) {
+  await save({ state: 'error', error: error && error.message ? error.message : String(error) });
+} finally {
+  const keep = page && page.label ? [page.label] : [];
+  await task.finish({ keep }).catch(() => {});
+}
+`;
+}
+
+// 扫描「已买到的宝贝」，返回已确认收货的订单列表。
+function importOrdersScript({ space, ordersUrl, resultPath }) {
+  return `'use strict';
+
+const SPACE = ${json(space)};
+const ORDERS_URL = ${json(ordersUrl)};
+const RESULT = ${json(resultPath)};
+
+const fs = await import('node:fs/promises');
+async function save(data) {
+  try { await fs.writeFile(RESULT, JSON.stringify(data)); } catch {}
+}
+
+const task = await taskSpace(SPACE);
+const page = task.page('p1');
+try {
+  await page.goto(ORDERS_URL);
+  await page.waitForTimeout(2500);
+  const current = await page.url().catch(() => '');
+  if (/login\\.taobao\\.com/.test(current)) {
+    await save({ state: 'needs_attention', reason: '登录已失效' });
+  } else {
+    const orders = await page.evaluate(() => {
+      const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+      const rows = [...document.querySelectorAll('[data-order-id],[class*="order-item" i],tr,li')];
+      const found = [];
+      const seen = new Set();
+      for (const row of rows) {
+        const text = clean(row.innerText);
+        if (!text) continue;
+        const idMatch = text.match(/订单号\\s*[:：]?\\s*([0-9A-Za-z_-]{6,40})/) || text.match(/\\b(\\d{12,24})\\b/);
+        const orderId = (row.getAttribute && row.getAttribute('data-order-id')) || (idMatch ? idMatch[1] : '');
+        if (!orderId || seen.has(orderId)) continue;
+        const buttons = [...row.querySelectorAll('button,a,[role="button"]')].map((el) => clean(el.innerText)).filter(Boolean);
+        const hasConfirm = buttons.some((label) => label.includes('确认收货')) || /待收货/.test(text);
+        const confirmed = !hasConfirm && (/交易成功|已收货|已评价|待评价|评价/.test(text) || buttons.some((label) => label.includes('评价')));
+        if (!confirmed) continue;
+        seen.add(orderId);
+        const lines = text.split(' ').filter(Boolean);
+        const title = lines.find((line) => line.length >= 4 && !line.includes(orderId) && !/订单号|交易成功|已评价|待评价|评价|确认收货/.test(line)) || '';
+        found.push({ orderId, title: title.slice(0, 80) });
+      }
+      return found;
+    }).catch(() => []);
+
+    await save({ state: 'ok', orders, currentUrl: await page.url().catch(() => null) });
+  }
+} catch (error) {
+  await save({ state: 'error', error: error && error.message ? error.message : String(error) });
+} finally {
+  const keep = page && page.label ? [page.label] : [];
+  await task.finish({ keep }).catch(() => {});
+}
+`;
+}
+
+module.exports = { taskScript, fetchImagesScript, importOrdersScript, DEFAULT_URLS };

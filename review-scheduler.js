@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
-const { taskScript } = require('./review-driver');
+const { taskScript, fetchImagesScript, importOrdersScript, DEFAULT_URLS } = require('./review-driver');
 const { inQuietHours } = require('./review-store');
 
 const EGO_BIN = process.env.EGO_BROWSER || 'ego-browser';
@@ -51,7 +51,8 @@ class ReviewRunner {
     fs.writeFileSync(scriptPath, taskScript({
       space,
       orderId: task.orderId,
-      images: task.images,
+      reviewImages: task.reviewImages,
+      followupImages: task.followupImages,
       content: task.content,
       followupContent: task.followupContent,
       rating: task.rating,
@@ -77,6 +78,67 @@ class ReviewRunner {
     result.runId = runId;
     const saved = this.store.applyResult(task.id, result);
     return { result, task: saved };
+  }
+
+  // 输入商品链接，抓取主图 / SKU 图（返回图片 URL 列表，由调用方下载）。
+  async fetchImages({ url, sku1 = '', sku2 = '' }) {
+    if (!this.lock.acquire('review-fetch')) {
+      const error = new Error('当前有其它 ego 任务在执行，请稍后再试');
+      error.status = 409;
+      throw error;
+    }
+    const runDir = path.join(this.store.runRoot, '_fetch', String(Date.now()));
+    fs.mkdirSync(runDir, { recursive: true });
+    const resultPath = path.join(runDir, 'result.json');
+    const scriptPath = path.join(runDir, 'fetch.mjs');
+    const space = `paidan-fetch-${Date.now()}`;
+    fs.writeFileSync(scriptPath, fetchImagesScript({ space, url, sku1, sku2, resultPath }));
+    try {
+      await this.#spawnEgo(scriptPath);
+    } finally {
+      this.lock.release('review-fetch');
+    }
+    let result = null;
+    try {
+      result = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+    } catch {
+      throw new Error('抓图任务没有产出结果');
+    }
+    if (result.state !== 'ok') {
+      throw new Error(result.reason || result.error || '抓图失败');
+    }
+    return result;
+  }
+
+  // 扫描已买到的宝贝，返回已确认收货的订单。
+  async importOrders() {
+    if (!this.lock.acquire('review-import')) {
+      const error = new Error('当前有其它 ego 任务在执行，请稍后再试');
+      error.status = 409;
+      throw error;
+    }
+    const runDir = path.join(this.store.runRoot, '_import', String(Date.now()));
+    fs.mkdirSync(runDir, { recursive: true });
+    const resultPath = path.join(runDir, 'result.json');
+    const scriptPath = path.join(runDir, 'import.mjs');
+    const space = `paidan-import-${Date.now()}`;
+    const ordersUrl = (this.mockBase ? `${this.mockBase}/__mock-orders.html` : DEFAULT_URLS.orders);
+    fs.writeFileSync(scriptPath, importOrdersScript({ space, ordersUrl, resultPath }));
+    try {
+      await this.#spawnEgo(scriptPath);
+    } finally {
+      this.lock.release('review-import');
+    }
+    let result = null;
+    try {
+      result = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+    } catch {
+      throw new Error('同步订单没有产出结果');
+    }
+    if (result.state !== 'ok') {
+      throw new Error(result.reason || result.error || '同步订单失败');
+    }
+    return result;
   }
 
   #spawnEgo(scriptPath) {

@@ -29,7 +29,7 @@ test('设置会被夹到合理范围', () => {
   });
   assert.equal(settings.checkIntervalMinutes, 5);
   assert.equal(settings.followupDefaultDays, 180);
-  assert.equal(settings.maxImagesPerReview, 9);
+  assert.equal(settings.maxImagesPerReview, 5);
   assert.equal(settings.quietHours.start, DEFAULT_SETTINGS.quietHours.start);
 });
 
@@ -153,21 +153,40 @@ test('需要人工处理与过期状态', () => {
   assert.equal(store.getTask(task.id).state, 'expired');
 });
 
-test('图片数量受设置约束', () => {
+test('首次晒图和追评晒图分开限制数量', () => {
   const root = tempRoot();
   const store = new ReviewStore(root);
   store.load();
-  store.updateSettings({ maxImagesPerReview: 2 });
+  store.updateSettings({ maxImagesPerReview: 2, maxImagesPerFollowup: 1 });
   assert.throws(
-    () => store.upsertTask({ orderId: '200500', images: ['a.jpg', 'b.jpg', 'c.jpg'] }),
-    /最多 2 张图片/,
+    () => store.upsertTask({ orderId: '200500', reviewImages: ['a.jpg', 'b.jpg', 'c.jpg'] }),
+    /首次晒图最多 2 张/,
   );
-  const task = store.upsertTask({ orderId: '200600', images: ['a.jpg', 'b.jpg'] });
-  assert.deepEqual(task.images, ['a.jpg', 'b.jpg']);
+  assert.throws(
+    () => store.upsertTask({ orderId: '200501', followupImages: ['a.jpg', 'b.jpg'] }),
+    /追评晒图最多 1 张/,
+  );
+  const task = store.upsertTask({
+    orderId: '200600',
+    reviewImages: ['a.jpg', 'b.jpg'],
+    followupImages: ['c.jpg'],
+  });
+  assert.deepEqual(task.reviewImages, ['a.jpg', 'b.jpg']);
+  assert.deepEqual(task.followupImages, ['c.jpg']);
   assert.deepEqual(task.imageUrls, [
     `/api/review/images/${task.id}/a.jpg`,
     `/api/review/images/${task.id}/b.jpg`,
   ]);
+  assert.deepEqual(task.followupImageUrls, [`/api/review/images/${task.id}/c.jpg`]);
+});
+
+test('旧版 images 字段会迁移成首次晒图', () => {
+  const root = tempRoot();
+  const store = new ReviewStore(root);
+  store.load();
+  const task = store.upsertTask({ orderId: '200601', images: ['old.jpg'] });
+  assert.deepEqual(task.reviewImages, ['old.jpg']);
+  assert.deepEqual(task.followupImages, []);
 });
 
 test('一次触发会处理所有到期任务，且尊重任务锁', async () => {

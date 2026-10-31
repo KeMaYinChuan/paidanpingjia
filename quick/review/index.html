@@ -29,8 +29,9 @@
             <div class="muted" id="runHint">正在读取任务状态</div>
           </div>
           <div style="margin-left:auto; display:flex; gap:8px;">
+            <button class="btn small" id="importBtn">同步已收货订单</button>
             <button class="btn small" id="checkNowBtn">立即巡检</button>
-            <button class="btn small" id="toggleBtn">暂停调度</button>
+            <button class="btn small" id="toggleBtn">暂停自动检查</button>
           </div>
         </div>
         <div class="chips">
@@ -73,10 +74,28 @@
             </label>
           </div>
           <div class="field">
-            <span>晒图（最多 9 张，可多选）</span>
-            <div class="drop" id="drop">点击或拖拽图片到这里</div>
-            <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
-            <div class="thumbs" id="thumbs"></div>
+            <span>商品链接 + 规格值（可选，抓主图和 SKU 图用）</span>
+            <div style="display:flex; gap:8px;">
+              <input id="itemUrl" placeholder="https://item.taobao.com/item.htm?id=..." style="flex:2;" />
+              <input id="sku1" placeholder="规格值1，如 白色" style="flex:1;" />
+              <input id="sku2" placeholder="规格值2，如 M" style="flex:1;" />
+              <button class="btn" id="fetchImagesBtn" type="button">抓取主图/SKU图</button>
+            </div>
+            <small class="muted">会先按规格值选中 SKU，再抓主图和 SKU 图，抓到后自动放进「首次评价晒图」。</small>
+          </div>
+          <div class="row">
+            <div class="field">
+              <span>首次评价晒图（最多 5 张）</span>
+              <div class="drop" id="reviewDrop">点击或拖拽图片到这里</div>
+              <input type="file" id="reviewInput" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
+              <div class="thumbs" id="reviewThumbs"></div>
+            </div>
+            <div class="field">
+              <span>追评晒图（最多 5 张）</span>
+              <div class="drop" id="followupDrop">点击或拖拽图片到这里</div>
+              <input type="file" id="followupInput" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
+              <div class="thumbs" id="followupThumbs"></div>
+            </div>
           </div>
           <div style="display:flex; gap:10px;">
             <button class="btn primary" id="saveBtn" type="submit">保存任务</button>

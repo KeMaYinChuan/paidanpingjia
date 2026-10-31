@@ -58,6 +58,18 @@ async function main() {
   const created = [];
 
   try {
+    // 一键同步：只同步已确认收货的订单（mock 里 200201 待收货，应跳过）
+    const imported = await req('/api/review/import-orders', { method: 'POST' });
+    console.log('import', JSON.stringify(imported));
+    results.push({ name: '同步已收货订单', got: `${imported.imported}/${imported.skipped}`, expect: '2/0' });
+
+    // 抓取主图 / SKU 图
+    const fetched = await req('/api/review/fetch-images', {
+      method: 'POST',
+      body: JSON.stringify({ url: `${base}/__mock-product-2level.html`, sku1: '白色', sku2: 'M' }),
+    });
+    console.log('fetched images', fetched.images.length);
+    results.push({ name: '抓取主图/SKU图', got: fetched.images.length >= 2, expect: true });
     // 场景一：待收货
     const t1 = (await req('/api/review/tasks', {
       method: 'POST',
@@ -74,6 +86,7 @@ async function main() {
         followupContent: '测试追评内容',
         followupDays: 0,
         images: [imagePath],
+        followupImages: [imagePath],
       }),
     })).task;
     created.push(t2.id);
