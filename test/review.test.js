@@ -170,6 +170,35 @@ test('图片数量受设置约束', () => {
   ]);
 });
 
+test('一次触发会处理所有到期任务，且尊重任务锁', async () => {
+  const root = tempRoot();
+  const store = new ReviewStore(root);
+  store.load();
+  const lock = require('../runner-lock');
+  const { ReviewScheduler } = require('../review-scheduler');
+  const scheduler = new ReviewScheduler({ root, store, lock });
+  scheduler.runner.runTask = async (id) => {
+    store.applyResult(id, { state: 'waiting_confirm' });
+    return { task: store.getTask(id) };
+  };
+
+  const a = store.upsertTask({ orderId: '300001' });
+  const b = store.upsertTask({ orderId: '300002' });
+  const c = store.upsertTask({ orderId: '300003' });
+
+  lock.acquire('order');
+  const busy = await scheduler.tick({ manual: true });
+  assert.equal(busy.busy, true);
+  assert.equal(store.getTask(a.id).state, 'prepared');
+  lock.release('order');
+
+  const out = await scheduler.tick({ manual: true });
+  assert.equal(out.processed.length, 3);
+  for (const task of [a, b, c]) {
+    assert.equal(store.getTask(task.id).state, 'waiting_confirm');
+  }
+});
+
 test('数据写入后可重新加载', () => {
   const root = tempRoot();
   const store = new ReviewStore(root);

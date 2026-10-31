@@ -87,9 +87,20 @@ async function main() {
 
     console.log('created', created.length, 'tasks');
 
+    // 立即追评：还没评价时应被拒绝
+    const early = await fetch(`${base}/api/review/tasks/${t3.id}/followup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    console.log('followup-before-review status', early.status);
+    results.push({ name: '未评价不能立即追评', got: early.status, expect: 400 });
+
     // 第一轮巡检：200201 待收货、200202 评价、200203 追评（都在一轮里串行跑）
     let outcome = await req('/api/review/check-now?wait=1', { method: 'POST' });
     console.log('tick1', JSON.stringify(outcome));
+    const afterTick = await findTask('200202');
+    results.push({ name: '一次触发完成评价+追评', got: afterTick.state, expect: 'done' });
 
     const first1 = await findTask('200201');
     results.push({ name: '待收货', got: first1.state, expect: 'waiting_confirm' });

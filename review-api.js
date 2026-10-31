@@ -113,9 +113,32 @@ function createReviewApi({ root, store, scheduler, sendJson, HttpError }) {
     if (runMatch && method === 'POST') {
       const task = store.getTask(runMatch[1]);
       if (!task) throw new HttpError(404, '任务不存在');
-      const job = scheduler.runner.runTask(task.id).catch((error) => {
-        store.applyResult(task.id, { state: 'error', error: error.message });
+      const job = scheduler.runOne(task.id).catch(() => {
+        // 失败已在 runOne 里写入任务状态。
       });
+      const wait = url.searchParams.get('wait') === '1';
+      if (wait) {
+        const outcome = await job;
+        sendJson(res, 200, { ok: true, task: outcome && outcome.task ? outcome.task : store.listTasks().find((item) => item.id === task.id) });
+        return true;
+      }
+      sendJson(res, 202, { accepted: true });
+      return true;
+    }
+
+    // 立即追评：不等到期，直接把追评时间设为现在并执行。
+    const followupMatch = pathname.match(/^\/api\/review\/tasks\/([\w-]+)\/followup$/);
+    if (followupMatch && method === 'POST') {
+      const task = store.getTask(followupMatch[1]);
+      if (!task) throw new HttpError(404, '任务不存在');
+      if (!task.reviewedAt) throw new HttpError(400, '这笔订单还没有评价，不能追评');
+      if (task.state === 'done') throw new HttpError(400, '这笔订单已经完成追评');
+      store.updateTask(task.id, {});
+      task.state = 'waiting_followup';
+      task.followupDueAt = new Date().toISOString();
+      task.lastError = null;
+      store.save();
+      const job = scheduler.runOne(task.id).catch(() => {});
       const wait = url.searchParams.get('wait') === '1';
       if (wait) {
         const outcome = await job;

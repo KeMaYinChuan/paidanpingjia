@@ -112,6 +112,9 @@ function renderSettings(settings) {
 function taskActionButtons(task) {
   const buttons = [];
   buttons.push(`<button class="btn small" data-act="run" data-id="${task.id}">立即执行</button>`);
+  if (task.reviewedAt && !['done', 'expired'].includes(task.state)) {
+    buttons.push(`<button class="btn small" data-act="followup" data-id="${task.id}">立即追评</button>`);
+  }
   if (task.state === 'paused') {
     buttons.push(`<button class="btn small" data-act="resume" data-id="${task.id}">恢复</button>`);
   } else if (!['done', 'expired'].includes(task.state)) {
@@ -311,6 +314,10 @@ async function onTaskClick(event) {
     if (act === 'run') {
       await api(`/api/review/tasks/${id}/run`, { method: 'POST' });
       toast('已开始执行，稍后刷新查看结果');
+    } else if (act === 'followup') {
+      if (!confirm(`立即给订单 ${task.orderId} 追评？`)) return;
+      await api(`/api/review/tasks/${id}/followup`, { method: 'POST' });
+      toast('已开始追评，稍后刷新查看结果');
     } else if (act === 'pause' || act === 'resume' || act === 'retry') {
       await api(`/api/review/tasks/${id}`, { method: 'PATCH', body: JSON.stringify({ action: act }) });
       toast('已更新');

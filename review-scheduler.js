@@ -137,6 +137,7 @@ class ReviewScheduler {
     };
   }
 
+  // 一次触发会把所有到期任务排队跑完（同一时刻只跑一个 ego 任务）。
   async tick({ manual = false, limit = null } = {}) {
     if (this.running) return { busy: true, processed: [] };
     const settings = this.store.settings;
@@ -146,40 +147,49 @@ class ReviewScheduler {
     }
     if (this.runner.lock.isBusy()) return { busy: true, processed: [] };
 
-    const due = this.store.dueTasks(Date.now());
-    for (const item of due) {
-      if (item.action === 'expire') {
-        this.store.applyResult(item.id, { state: 'expired', error: '已超出可追评窗口' });
-      }
-    }
-    const workable = due.filter((item) => item.action !== 'expire');
-    const max = limit || settings.maxTasksPerTick;
-    const picked = workable.slice(0, max);
-    if (!picked.length) {
-      this.lastTickAt = new Date().toISOString();
-      this.lastTickResult = { processed: [] };
-      return { processed: [] };
-    }
-
     this.running = true;
     const processed = [];
+    const max = limit || 200;
     try {
-      for (const item of picked) {
-        if (this.runner.lock.isBusy()) break;
+      for (let index = 0; index < max; index += 1) {
+        if (this.runner.lock.isBusy()) break; // 拍单正在跑，剩下的任务下次再处理
+        const due = this.store.dueTasks(Date.now());
+        for (const item of due) {
+          if (item.action === 'expire') {
+            this.store.applyResult(item.id, { state: 'expired', error: '已超出可追评窗口' });
+          }
+        }
+        const next = due.find((item) => item.action !== 'expire');
+        if (!next) break;
         try {
-          const outcome = await this.runner.runTask(item.id);
-          processed.push({ id: item.id, action: item.action, state: outcome && outcome.task ? outcome.task.state : 'unknown' });
+          const outcome = await this.runner.runTask(next.id);
+          processed.push({ id: next.id, action: next.action, state: outcome && outcome.task ? outcome.task.state : 'unknown' });
         } catch (error) {
-          this.store.applyResult(item.id, { state: 'error', error: error.message });
-          processed.push({ id: item.id, action: item.action, state: 'error' });
+          this.store.applyResult(next.id, { state: 'error', error: error.message });
+          processed.push({ id: next.id, action: next.action, state: 'error' });
         }
       }
     } finally {
       this.running = false;
+      this.lastTickAt = new Date().toISOString();
+      this.lastTickResult = { processed };
     }
-    this.lastTickAt = new Date().toISOString();
-    this.lastTickResult = { processed };
     return { processed };
+  }
+
+  // 手动执行单个任务（立即评价 / 立即追评）。
+  async runOne(taskId) {
+    if (this.runner.lock.isBusy()) {
+      const error = new Error('当前有其它 ego 任务在执行，请稍后再试');
+      error.status = 409;
+      throw error;
+    }
+    try {
+      return await this.runner.runTask(taskId);
+    } catch (error) {
+      this.store.applyResult(taskId, { state: 'error', error: error.message });
+      throw error;
+    }
   }
 }
 
