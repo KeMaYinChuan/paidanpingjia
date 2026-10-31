@@ -55,15 +55,35 @@
 - 脚本按文字匹配页面上每一个规格组，匹配不到的组会默认选第一个可选值。
 - 页面结构差异太大找不到选项时，日志会提示，直接在 ego 页面里手动点一下即可。
 
+## 晒评价（自动评价 + 追评）
+
+拍单页面点右上角「晒评价」，或直接打开 <http://127.0.0.1:4321/review>。
+
+![晒评价界面](docs/review-ui.png)
+
+1. 每笔订单单独建任务：订单号 + 评价文字 + 追评文字 + 追评天数 + 晒图（最多 9 张）。
+2. 服务每 30 分钟巡检一次（可改）：订单「确认收货」后自动去评价（5 星 + 文字 + 图片）。
+3. 评价满 N 天后自动追评，追评文字用的是任务里那一份；超出可追评窗口会标记过期。
+4. 任务状态：待开始 → 待收货 → 待评价 → 已评价 / 待追评 → 已完成；遇到验证码、登录失效会转「需处理」，等你在 ego 里手动处理后点「重试」。
+5. 调度随服务常驻，页面关掉也会继续跑；静音时段默认 23:30–08:00（可改）。
+
 ## 目录
 
 ```
-quick-server.js      本地服务：参数校验、任务状态、调用 ego
+quick-server.js      本地服务：参数校验、任务状态、调用 ego，挂载 /review 页面
 ego-driver.js        生成 ego 任务脚本（下单 / 登录）
+review-store.js      晒评价任务的数据层（data/reviews.json、到期计算）
+review-driver.js     生成晒评价的 ego 脚本（巡检 / 评价 / 追评）
+review-scheduler.js  定时巡检与串行执行
+review-api.js        /api/review/* 接口
+runner-lock.js       拍单与晒评价共用的进程内互斥锁
 detect-login.js      检测 ego 里的淘宝登录态，写入 data/login-state.json
 login-check.js       登录态检测的复用实现（供 detect-login 与服务调用）
 quick/               页面（index.html / app.js / styles.css）
-data/ego-runs/       每次任务的临时脚本、进度和结果
+quick/review/        晒评价页面
+data/ego-runs/       拍单任务的临时脚本、进度和结果
+data/reviews.json    晒评价任务数据（不入库，自动生成）
+data/review-images/  晒评价图片
 data/login-state.json 登录状态标记（真正的 Cookie 在 ego 里）
 test/                接口与纯函数测试
 ```
@@ -71,11 +91,13 @@ test/                接口与纯函数测试
 ## 测试
 
 ```powershell
-npm test
+npm test              # 单元 + 接口测试
+npm run test:review   # 晒评价端到端（用 mock 页面在 ego 里跑一遍）
 ```
 
 ## 说明
 
 - 只创建未付款订单，不包含支付、代付、批量刷单等功能。
 - 工具会按 ego 里当前登录的账号记录任务，换账号就重新登录一次；真正的登录态由 ego 浏览器统一保存。
+- 晒评价只在服务运行时执行；电脑关机或服务停止期间到期任务会在下次启动后补跑。
 - 旧的「派单台」看板仍保留：`npm run dashboard`。

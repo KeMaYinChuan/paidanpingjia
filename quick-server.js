@@ -8,15 +8,33 @@ const { spawn } = require('node:child_process');
 const { URL } = require('node:url');
 const { orderScript, loginScript, uiScript } = require('./ego-driver');
 const { detectLogin } = require('./login-check');
+const lock = require('./runner-lock');
+const { ReviewStore } = require('./review-store');
+const { ReviewScheduler } = require('./review-scheduler');
+const { createReviewApi } = require('./review-api');
 
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, 'quick');
+const REVIEW_DIR = path.join(ROOT, 'quick', 'review');
 const PROFILE_ROOT = path.join(ROOT, 'quick-profile');
 const RUN_ROOT = path.join(ROOT, 'data', 'ego-runs');
 const LOGIN_STATE_FILE = path.join(ROOT, 'data', 'login-state.json');
 const PORT = Number(process.env.PORT || 4321);
 const TEST_MODE = process.env.TEST_MODE === '1';
 const EGO_BIN = process.env.EGO_BROWSER || 'ego-browser';
+
+const reviewStore = new ReviewStore(ROOT);
+reviewStore.load();
+const reviewScheduler = new ReviewScheduler({
+  root: ROOT,
+  store: reviewStore,
+  lock,
+  intervalMs: 60000,
+  mockBase: process.env.REVIEW_MOCK_BASE || '',
+});
+
+// 仅在 mock 模式下启用：给 mock 页面提供订单状态存取，方便端到端测试。
+const mockOrderState = new Map();
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -330,6 +348,7 @@ function closeBrowser(reason = '任务已取消', loginOutcome = 'idle') {
         ? '登录状态已保存，下次不用再登录。'
         : '登录窗口已关闭，可以重新打开。';
   }
+  lock.release('order');
 }
 
 async function openLogin(account) {
@@ -422,6 +441,7 @@ function failSession(message) {
   session.error = message;
   session.finishedAt = now();
   log(`执行失败：${message}`, 'error');
+  lock.release('order');
 }
 
 async function runTask() {
@@ -471,18 +491,22 @@ async function runTask() {
       session.child = null;
       if (session.timer) clearTimeout(session.timer);
       refreshSession();
-      if (readResult(session)) return;
+      if (readResult(session)) {
+        lock.release('order');
+        return;
+      }
       if (isOrderRunning()) {
         const detail = getStderr().trim().split('\n').slice(-3).join(' ');
         failSession(`ego 进程退出（${code}）${detail ? `：${detail}` : ''}`);
       }
+      lock.release('order');
     });
   } catch (error) {
     failSession(error.message);
   }
 }
 
-function serveStatic(req, res, pathname) {
+function serveStatic(req, res, pathname, baseDir = PUBLIC_DIR) {
   const requested = pathname === '/' ? '/index.html' : pathname;
   let decoded;
   try {
@@ -491,8 +515,9 @@ function serveStatic(req, res, pathname) {
     res.writeHead(400);
     return res.end('Bad request');
   }
-  const filePath = path.resolve(PUBLIC_DIR, `.${decoded}`);
-  if (!filePath.startsWith(path.resolve(PUBLIC_DIR) + path.sep)) {
+  const base = path.resolve(baseDir);
+  const filePath = path.resolve(base, `.${decoded}`);
+  if (!filePath.startsWith(base + path.sep)) {
     res.writeHead(403);
     return res.end('Forbidden');
   }
@@ -514,6 +539,13 @@ function serveStatic(req, res, pathname) {
 }
 
 function createServer() {
+  const reviewApi = createReviewApi({
+    root: ROOT,
+    store: reviewStore,
+    scheduler: reviewScheduler,
+    sendJson,
+    HttpError,
+  });
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const pathname = url.pathname;
@@ -555,7 +587,11 @@ function createServer() {
         if (isOrderRunning()) {
           throw new HttpError(409, '当前已有拍单任务在运行');
         }
+        if (lock.isBusy()) {
+          throw new HttpError(409, '正在执行晒评价任务，请稍后再开始拍单');
+        }
         const input = normalizeInput(await parseBody(req));
+        lock.acquire('order');
         session = {
           id: uid(),
           ...input,
@@ -583,8 +619,37 @@ function createServer() {
         return sendJson(res, 200, publicState());
       }
 
+      if (pathname.startsWith('/api/mock') && process.env.REVIEW_MOCK_BASE) {
+        if (pathname === '/api/mock/reset' && method === 'POST') {
+          mockOrderState.clear();
+          return sendJson(res, 200, { ok: true });
+        }
+        const mockMatch = pathname.match(/^\/api\/mock\/order\/([\w-]+)$/);
+        if (mockMatch && method === 'GET') {
+          return sendJson(res, 200, { state: mockOrderState.get(mockMatch[1]) || null });
+        }
+        if (mockMatch && method === 'POST') {
+          const body = await parseBody(req);
+          mockOrderState.set(mockMatch[1], String(body.state || ''));
+          return sendJson(res, 200, { ok: true });
+        }
+        throw new HttpError(404, '接口不存在');
+      }
+
+      if (pathname.startsWith('/api/review')) {
+        await reviewApi(req, res, pathname, method, url);
+        return;
+      }
+
       if (pathname.startsWith('/api/')) {
         throw new HttpError(404, '接口不存在');
+      }
+
+      if (pathname === '/review' || pathname === '/review/') {
+        return serveStatic(req, res, '/index.html', REVIEW_DIR);
+      }
+      if (pathname.startsWith('/review/')) {
+        return serveStatic(req, res, pathname.slice('/review'.length), REVIEW_DIR);
       }
 
       return serveStatic(req, res, pathname);
@@ -599,6 +664,7 @@ if (require.main === module) {
   server.listen(PORT, '127.0.0.1', () => {
     const address = `http://127.0.0.1:${PORT}`;
     console.log(`一键拍单已启动：${address}`);
+    reviewScheduler.start();
     if (process.env.AUTO_OPEN === '1') {
       openInEgo(address);
     }

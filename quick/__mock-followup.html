@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8" /><title>追加评价（mock）</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; width: 520px; }
+  textarea { width: 100%; height: 100px; margin-top: 12px; }
+  button { margin-top: 12px; padding: 8px 16px; }
+  #result { color: #2f9e6b; font-weight: 700; margin-top: 12px; }
+</style>
+</head>
+<body>
+  <h2>追加评价</h2>
+  <textarea id="content" placeholder="说说后续使用感受"></textarea>
+  <div style="margin-top:12px;">
+    上传图片：<input type="file" id="files" multiple accept="image/*" />
+  </div>
+  <button type="button" id="submit">提交追评</button>
+  <div id="result"></div>
+
+<script>
+  const orderId = new URLSearchParams(location.search).get('order') || '';
+  document.querySelector('#submit').addEventListener('click', async () => {
+    const text = document.querySelector('#content').value.trim();
+    if (!text) { alert('请填写追评内容'); return; }
+    if (orderId) {
+      await fetch('/api/mock/order/' + orderId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: 'followed' }),
+      }).catch(() => {});
+    }
+    document.querySelector('#result').textContent = '追评成功';
+  });
+</script>
+</body>
+</html>

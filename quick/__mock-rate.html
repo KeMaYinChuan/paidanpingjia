@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8" /><title>发表评价（mock）</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; width: 520px; }
+  .stars span { font-size: 28px; color: #ccc; cursor: pointer; padding: 0 4px; }
+  .stars span.on { color: #f5a623; }
+  textarea { width: 100%; height: 100px; margin-top: 12px; }
+  button { margin-top: 12px; padding: 8px 16px; }
+  #result { color: #2f9e6b; font-weight: 700; margin-top: 12px; }
+</style>
+</head>
+<body>
+  <h2>发表评价</h2>
+  <div class="stars" id="stars">
+    <span class="star" data-value="1">★</span><span class="star" data-value="2">★</span><span class="star" data-value="3">★</span><span class="star" data-value="4">★</span><span class="star" data-value="5">★</span>
+  </div>
+  <textarea id="content" placeholder="说说使用感受"></textarea>
+  <div style="margin-top:12px;">
+    上传图片：<input type="file" id="files" multiple accept="image/*" />
+  </div>
+  <button type="button" id="submit">提交评价</button>
+  <div id="result"></div>
+
+<script>
+  const orderId = new URLSearchParams(location.search).get('order') || '';
+  const stars = document.querySelectorAll('#stars span');
+  stars.forEach((star) => star.addEventListener('click', () => {
+    const value = Number(star.dataset.value);
+    stars.forEach((item) => item.classList.toggle('on', Number(item.dataset.value) <= value));
+  }));
+  document.querySelector('#submit').addEventListener('click', async () => {
+    const text = document.querySelector('#content').value.trim();
+    const picked = document.querySelectorAll('#stars span.on').length;
+    if (!text) { alert('请填写评价内容'); return; }
+    if (!picked) { alert('请选择评分'); return; }
+    if (orderId) {
+      await fetch('/api/mock/order/' + orderId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: 'reviewed' }),
+      }).catch(() => {});
+    }
+    document.querySelector('#result').textContent = '评价成功';
+    setTimeout(() => { location.href = '/__mock-rate-done.html'; }, 600);
+  });
+</script>
+</body>
+</html>

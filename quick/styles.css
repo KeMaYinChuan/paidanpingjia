@@ -541,3 +541,11 @@ input {
     transition-duration: 0.001ms !important;
   }
 }
+
+.top-nav { margin-left: auto; display: flex; gap: 6px; }
+.top-nav a {
+  text-decoration: none; color: var(--muted); font-size: 12px; padding: 7px 13px;
+  border-radius: 999px; border: 1px solid transparent;
+}
+.top-nav a:hover { color: var(--ink); }
+.top-nav a.active { color: #e85d2a; background: #fdeee7; border-color: #f6d4c5; }

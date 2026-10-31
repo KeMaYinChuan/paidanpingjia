@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8" /><title>已买到的宝贝（mock）</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; }
+  .order-item { border: 1px solid #ddd; padding: 12px; margin: 10px 0; }
+  .order-id { font-weight: 700; }
+  button { padding: 6px 12px; }
+</style>
+</head>
+<body>
+  <h1>已买到的宝贝</h1>
+
+  <div class="order-item" data-order-id="200201" data-base="delivering">
+    <div class="order-id">订单号 200201</div>
+    <div class="order-title">示例商品</div>
+    <div class="order-actions"></div>
+  </div>
+
+  <div class="order-item" data-order-id="200202" data-base="pending_review">
+    <div class="order-id">订单号 200202</div>
+    <div class="order-title">示例商品</div>
+    <div class="order-actions"></div>
+  </div>
+
+  <div class="order-item" data-order-id="200203" data-base="reviewed">
+    <div class="order-id">订单号 200203</div>
+    <div class="order-title">示例商品</div>
+    <div class="order-actions"></div>
+  </div>
+
+<script>
+  async function render() {
+    const items = [...document.querySelectorAll('.order-item')];
+    for (const item of items) {
+      const id = item.dataset.orderId;
+      let base = item.dataset.base;
+      try {
+        const res = await fetch('/api/mock/order/' + id);
+        const data = await res.json();
+        if (data.state) base = data.state;
+      } catch {}
+
+      const box = item.querySelector('.order-actions');
+      const title = item.querySelector('.order-title');
+      if (base === 'delivering') {
+        title.textContent = '示例商品 · 待收货';
+        box.innerHTML = '<button type="button">确认收货</button>';
+      } else if (base === 'pending_review') {
+        title.textContent = '示例商品 · 交易成功';
+        box.innerHTML = '<a href="/__mock-rate.html?order=' + id + '"><button type="button">评价</button></a>';
+      } else if (base === 'reviewed') {
+        title.textContent = '示例商品 · 已评价';
+        box.innerHTML = '<a href="/__mock-followup.html?order=' + id + '"><button type="button">追加评价</button></a>';
+      } else {
+        title.textContent = '示例商品 · 已追评';
+        box.innerHTML = '<span>已评价</span>';
+      }
+    }
+  }
+  render();
+</script>
+</body>
+</html>
