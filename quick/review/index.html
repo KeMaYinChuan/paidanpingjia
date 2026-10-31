@@ -57,22 +57,6 @@
               <input id="orderTitle" placeholder="方便自己核对" />
             </label>
           </div>
-          <div class="row">
-            <label class="field">
-              <span>评价文字</span>
-              <textarea id="content" placeholder="例如：东西不错，包装完整，和描述一致。"></textarea>
-            </label>
-            <label class="field">
-              <span>追评文字</span>
-              <textarea id="followupContent" placeholder="例如：用了一周，依然很好用，推荐。"></textarea>
-            </label>
-          </div>
-          <div class="row">
-            <label class="field" style="max-width:200px;">
-              <span>评价后几天追评</span>
-              <input id="followupDays" type="number" min="0" max="180" value="3" />
-            </label>
-          </div>
           <div class="field">
             <span>商品链接 + 规格值（可选，抓主图和 SKU 图用）</span>
             <div style="display:flex; gap:8px;">
@@ -83,14 +67,34 @@
             </div>
             <small class="muted">会先按规格值选中 SKU，再抓主图和 SKU 图，抓到后自动放进「首次评价晒图」。</small>
           </div>
-          <div class="row">
-            <div class="field">
+
+          <div class="group">
+            <h3 class="group-title">首次评价</h3>
+            <label class="field">
+              <span>评价文字</span>
+              <textarea id="content" placeholder="例如：东西不错，包装完整，和描述一致。"></textarea>
+            </label>
+            <div class="field" style="margin-bottom:0;">
               <span>首次评价晒图（最多 5 张）</span>
               <div class="drop" id="reviewDrop">点击或拖拽图片到这里</div>
               <input type="file" id="reviewInput" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
               <div class="thumbs" id="reviewThumbs"></div>
             </div>
-            <div class="field">
+          </div>
+
+          <div class="group">
+            <h3 class="group-title">追评</h3>
+            <div class="row">
+              <label class="field">
+                <span>追评文字</span>
+                <textarea id="followupContent" placeholder="例如：用了一周，依然很好用，推荐。"></textarea>
+              </label>
+              <label class="field" style="max-width:170px;">
+                <span>评价后几天追评</span>
+                <input id="followupDays" type="number" min="0" max="180" value="3" />
+              </label>
+            </div>
+            <div class="field" style="margin-bottom:0;">
               <span>追评晒图（最多 5 张）</span>
               <div class="drop" id="followupDrop">点击或拖拽图片到这里</div>
               <input type="file" id="followupInput" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />

@@ -137,3 +137,17 @@ details.settings summary { cursor: pointer; font-size: 13px; color: var(--muted)
 .thumb-group { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .thumb-label { font-size: 10px; color: #9aa096; width: 24px; }
 .task-thumbs-wrap { display: flex; flex-direction: column; }
+
+.group {
+  border: 1px dashed #ded3c3;
+  border-radius: 12px;
+  padding: 14px 16px 16px;
+  margin-bottom: 16px;
+  background: #fcfaf4;
+}
+.group-title {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #e85d2a;
+  letter-spacing: .5px;
+}
