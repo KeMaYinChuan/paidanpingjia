@@ -50,6 +50,7 @@ function createReviewApi({ root, store, scheduler, sendJson, HttpError }) {
         settings: store.settings,
         tasks: store.listTasks(),
         stats: store.stats(),
+        rate: store.rateStatus(),
         runner: scheduler.status(),
       });
       return true;

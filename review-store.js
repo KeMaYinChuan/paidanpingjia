@@ -37,6 +37,10 @@ const DEFAULT_SETTINGS = {
   followupWindowDays: 180,
   rating: 5,
   maxTasksPerTick: 3,
+  hourlyLimit: 10,
+  dailyLimit: 30,
+  taskGapMinSeconds: 15,
+  taskGapMaxSeconds: 45,
 };
 
 function nowIso(now = Date.now()) {
@@ -77,6 +81,10 @@ function normalizeSettings(patch = {}, base = DEFAULT_SETTINGS) {
     followupWindowDays: clamp(Number(input.followupWindowDays) || base.followupWindowDays, 1, 365),
     rating: clamp(Number(input.rating) || base.rating, 1, 5),
     maxTasksPerTick: clamp(Number(input.maxTasksPerTick) || base.maxTasksPerTick, 1, 10),
+    hourlyLimit: clamp(Number(input.hourlyLimit) || base.hourlyLimit, 1, 100),
+    dailyLimit: clamp(Number(input.dailyLimit) || base.dailyLimit, 1, 500),
+    taskGapMinSeconds: clamp(Number(input.taskGapMinSeconds ?? base.taskGapMinSeconds), 0, 600),
+    taskGapMaxSeconds: clamp(Number(input.taskGapMaxSeconds ?? base.taskGapMaxSeconds), 0, 900),
   };
 }
 
@@ -145,7 +153,7 @@ class ReviewStore {
     this.file = path.join(root, 'data', 'reviews.json');
     this.imageRoot = path.join(root, 'data', 'review-images');
     this.runRoot = path.join(root, 'data', 'review-runs');
-    this.state = { version: 1, settings: normalizeSettings(), tasks: [] };
+    this.state = { version: 1, settings: normalizeSettings(), tasks: [], recentRuns: [] };
   }
 
   load() {
@@ -153,9 +161,9 @@ class ReviewStore {
       const raw = JSON.parse(fs.readFileSync(this.file, 'utf8'));
       const settings = normalizeSettings(raw.settings || {});
       const tasks = Array.isArray(raw.tasks) ? raw.tasks.map((task) => this.#normalizeTask(task)) : [];
-      this.state = { version: 1, settings, tasks };
+      this.state = { version: 1, settings, tasks, recentRuns: Array.isArray(raw.recentRuns) ? raw.recentRuns.slice(-500) : [] };
     } catch {
-      this.state = { version: 1, settings: normalizeSettings(), tasks: [] };
+      this.state = { version: 1, settings: normalizeSettings(), tasks: [], recentRuns: [] };
     }
     return this.state;
   }
@@ -432,6 +440,30 @@ class ReviewStore {
     const weight = { followup: 0, expire: 1, review: 2, probe: 3 };
     out.sort((a, b) => (weight[a.action] ?? 9) - (weight[b.action] ?? 9));
     return out;
+  }
+
+  rateStatus(now = Date.now()) {
+    const settings = this.state.settings;
+    const runs = (this.state.recentRuns || [])
+      .map((time) => new Date(time).getTime())
+      .filter((time) => Number.isFinite(time) && now - time < 24 * 60 * 60 * 1000);
+    const hour = runs.filter((time) => now - time < 60 * 60 * 1000).length;
+    const day = runs.length;
+    return {
+      hour,
+      day,
+      hourlyLimit: settings.hourlyLimit,
+      dailyLimit: settings.dailyLimit,
+      allowed: hour < settings.hourlyLimit && day < settings.dailyLimit,
+    };
+  }
+
+  recordRun(now = Date.now()) {
+    const runs = (this.state.recentRuns || [])
+      .filter((time) => now - new Date(time).getTime() < 24 * 60 * 60 * 1000);
+    runs.push(new Date(now).toISOString());
+    this.state.recentRuns = runs.slice(-500);
+    this.save();
   }
 
   stats() {

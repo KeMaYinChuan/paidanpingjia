@@ -14,7 +14,7 @@ const imagePath = path.join(root, 'docs', 'quick-ui.png');
 
 const server = spawn(process.execPath, ['quick-server.js'], {
   cwd: root,
-  env: { ...process.env, PORT: String(port), REVIEW_MOCK_BASE: base },
+  env: { ...process.env, PORT: String(port), REVIEW_MOCK_BASE: base, REVIEW_FAST: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
   windowsHide: true,
 });

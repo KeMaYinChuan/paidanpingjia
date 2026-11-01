@@ -11,6 +11,9 @@ const { inQuietHours } = require('./review-store');
 
 const EGO_BIN = process.env.EGO_BROWSER || 'ego-browser';
 const RUN_TIMEOUT_MS = 5 * 60 * 1000;
+const FAST = process.env.REVIEW_FAST === '1';
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+function jitter(min, max) { return FAST ? 0 : Math.floor(min + Math.random() * (max - min)); }
 
 function fileUrl(filePath) {
   return `file:///${filePath.replace(/\\/g, '/')}`;
@@ -61,6 +64,7 @@ class ReviewRunner {
       resultPath,
     }));
 
+    await sleep(jitter(1200, 3000));
     this.store.markRunning(task.id, task.state === 'waiting_followup' || task.state === 'reviewed' ? 'following_up' : 'probing');
 
     try {
@@ -211,6 +215,7 @@ class ReviewScheduler {
 
     this.running = true;
     const processed = [];
+    let rateLimited = false;
     const max = limit || 200;
     try {
       for (let index = 0; index < max; index += 1) {
@@ -223,9 +228,12 @@ class ReviewScheduler {
         }
         const next = due.find((item) => item.action !== 'expire');
         if (!next) break;
+        if (!this.store.rateStatus().allowed) { rateLimited = true; break; }
         try {
           const outcome = await this.runner.runTask(next.id);
+          this.store.recordRun();
           processed.push({ id: next.id, action: next.action, state: outcome && outcome.task ? outcome.task.state : 'unknown' });
+          if (index < max - 1) await sleep(jitter(settings.taskGapMinSeconds * 1000, settings.taskGapMaxSeconds * 1000));
         } catch (error) {
           this.store.applyResult(next.id, { state: 'error', error: error.message });
           processed.push({ id: next.id, action: next.action, state: 'error' });
@@ -236,7 +244,7 @@ class ReviewScheduler {
       this.lastTickAt = new Date().toISOString();
       this.lastTickResult = { processed };
     }
-    return { processed };
+    return { processed, rateLimited };
   }
 
   // 手动执行单个任务（立即评价 / 立即追评）。
@@ -246,8 +254,16 @@ class ReviewScheduler {
       error.status = 409;
       throw error;
     }
+    const rate = this.store.rateStatus();
+    if (!rate.allowed) {
+      const error = new Error(`已达到频率上限（每小时 ${rate.hourlyLimit} 次 / 每天 ${rate.dailyLimit} 次），请稍后再试`);
+      error.status = 429;
+      throw error;
+    }
     try {
-      return await this.runner.runTask(taskId);
+      const outcome = await this.runner.runTask(taskId);
+      this.store.recordRun();
+      return outcome;
     } catch (error) {
       this.store.applyResult(taskId, { state: 'error', error: error.message });
       throw error;

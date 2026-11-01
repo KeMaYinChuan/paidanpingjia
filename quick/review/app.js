@@ -92,6 +92,7 @@ function renderStatus(d) {
   } else {
     dot.classList.add('ok');
     hint += ' · 可点「立即巡检」手动触发';
+    hint += ` · 今日已执行 ${(d.rate && d.rate.day) || 0}/${(d.rate && d.rate.dailyLimit) || 30}`;
   }
   $('#runState').textContent = text;
   $('#runHint').textContent = hint;
@@ -109,6 +110,8 @@ function renderStats(stats) {
 function renderSettings(settings) {
   if (document.activeElement && document.activeElement.closest('.settings-grid')) return;
   $('#setFollowupDays').value = settings.followupDefaultDays;
+  $('#setHourly').value = settings.hourlyLimit;
+  $('#setDaily').value = settings.dailyLimit;
 }
 
 function taskActionButtons(task) {
@@ -464,7 +467,11 @@ async function main() {
     try {
       await api('/api/review/settings', {
         method: 'PATCH',
-        body: JSON.stringify({ followupDefaultDays: Number($('#setFollowupDays').value) }),
+        body: JSON.stringify({
+          followupDefaultDays: Number($('#setFollowupDays').value),
+          hourlyLimit: Number($('#setHourly').value),
+          dailyLimit: Number($('#setDaily').value),
+        }),
       });
       toast('设置已保存');
       await poll();

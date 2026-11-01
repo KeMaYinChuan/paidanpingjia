@@ -1,5 +1,7 @@
 'use strict';
 
+process.env.REVIEW_FAST = '1';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -187,6 +189,34 @@ test('旧版 images 字段会迁移成首次晒图', () => {
   const task = store.upsertTask({ orderId: '200601', images: ['old.jpg'] });
   assert.deepEqual(task.reviewImages, ['old.jpg']);
   assert.deepEqual(task.followupImages, []);
+});
+
+test('每小时/每天执行频率限制', () => {
+  const root = tempRoot();
+  const store = new ReviewStore(root);
+  store.load();
+  store.updateSettings({ hourlyLimit: 2, dailyLimit: 3 });
+  const now = Date.now();
+
+  assert.equal(store.rateStatus(now).allowed, true);
+  store.recordRun(now - 10 * 60 * 1000);
+  store.recordRun(now - 20 * 60 * 1000);
+  let rate = store.rateStatus(now);
+  assert.equal(rate.hour, 2);
+  assert.equal(rate.allowed, false);
+
+  // 三小时前的记录不占每小时名额，但占每天名额
+  const later = now + 3 * 60 * 60 * 1000;
+  rate = store.rateStatus(later);
+  assert.equal(rate.hour, 0);
+  assert.equal(rate.day, 2);
+  assert.equal(rate.allowed, true);
+
+  store.recordRun(later - 1000);
+  store.recordRun(later - 2000);
+  rate = store.rateStatus(later);
+  assert.equal(rate.day, 4);
+  assert.equal(rate.allowed, false);
 });
 
 test('一次触发会处理所有到期任务，且尊重任务锁', async () => {

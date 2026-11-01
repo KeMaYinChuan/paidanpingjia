@@ -275,7 +275,7 @@ async function main() {
     task = await taskSpace(SPACE);
     page = task.page('p1');
     await page.goto(ORDERS_URL);
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1800 + Math.floor(Math.random() * 1500));
 
     const url = await page.url().catch(() => '');
     if (/login\\.taobao\\.com/.test(url)) {
@@ -286,7 +286,7 @@ async function main() {
 
     let found = await findOrder();
     if (!found.found) {
-      await page.waitForTimeout(2500);
+      await page.waitForTimeout(2000 + Math.floor(Math.random() * 1500));
       found = await findOrder();
     }
     const currentUrl = await page.url().catch(() => null);
@@ -315,9 +315,9 @@ async function main() {
         await saveResult({ state: 'error', error: '没有点到评价按钮', currentUrl });
         return;
       }
-      await sleep(1500);
+      await sleep(1200 + Math.floor(Math.random() * 1500));
       await adpotActiveTab();
-      await page.waitForTimeout(1200);
+      await page.waitForTimeout(800 + Math.floor(Math.random() * 1000));
       await log('评价页：' + (await page.url().catch(() => '')));
       const starred = await fillStars();
       await log(starred ? '已选择评分' : '没有点到评分星', starred ? 'info' : 'warn');
@@ -325,6 +325,7 @@ async function main() {
       await log(filled ? '评价文字已填写' : '没有找到评价输入框', filled ? 'info' : 'warn');
       const imagesOk = await uploadImages(IMAGES);
       await log(imagesOk ? '晒图已上传' : '晒图没有上传成功', imagesOk ? 'info' : 'warn');
+      await sleep(500 + Math.floor(Math.random() * 1200));
       const submitted = await submitAndVerify(['提交评价', '发表评价', '发布评价', '提交', '确定'], ['评价成功', '发布成功', '提交成功', '已评价']);
       if (!submitted.ok) {
         await saveResult({ state: 'error', error: submitted.reason, currentUrl: await page.url().catch(() => null) });
@@ -342,13 +343,14 @@ async function main() {
         await saveResult({ state: 'error', error: '没有点到追加评价按钮', currentUrl });
         return;
       }
-      await sleep(1500);
+      await sleep(1200 + Math.floor(Math.random() * 1500));
       await adpotActiveTab();
-      await page.waitForTimeout(1200);
+      await page.waitForTimeout(800 + Math.floor(Math.random() * 1000));
       await fillStars();
       await fillText(FOLLOWUP_CONTENT || CONTENT);
       const followupImagesOk = await uploadImages(FOLLOWUP_IMAGES);
       await log(followupImagesOk ? '追评晒图已上传' : '追评晒图没有上传成功', followupImagesOk ? 'info' : 'warn');
+      await sleep(500 + Math.floor(Math.random() * 1200));
       const submitted = await submitAndVerify(['提交追评', '发表追评', '提交', '确定'], ['追评成功', '发布成功', '提交成功', '已追评']);
       if (!submitted.ok) {
         await saveResult({ state: 'error', error: submitted.reason, currentUrl: await page.url().catch(() => null) });
@@ -403,7 +405,7 @@ const task = await taskSpace(SPACE);
 const page = task.page('p1');
 try {
   await page.goto(URL);
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(2000 + Math.floor(Math.random() * 1500));
   const current = await page.url().catch(() => '');
   if (/login\\.taobao\\.com/.test(current)) {
     await save({ state: 'needs_attention', reason: '登录已失效' });
@@ -482,7 +484,7 @@ const task = await taskSpace(SPACE);
 const page = task.page('p1');
 try {
   await page.goto(ORDERS_URL);
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(2000 + Math.floor(Math.random() * 1500));
   const current = await page.url().catch(() => '');
   if (/login\\.taobao\\.com/.test(current)) {
     await save({ state: 'needs_attention', reason: '登录已失效' });
